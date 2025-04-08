@@ -1,0 +1,2 @@
+C:/Users/adilr/Documents/budget/android/app/.cxx/Debug/5z535d4a/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/adilr/Documents/budget/android/app/.cxx/Debug/5z535d4a/armeabi-v7a/CMakeFiles/rebuild_cache.dir
