@@ -10,11 +10,12 @@ class _RegisterPageState extends State<RegisterPage> {
   final supabase = Supabase.instance.client;
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  bool isLoading = false; // Track loading state
+  bool isLoading = false;
+  bool _obscureText = true;
 
   Future<void> signUp() async {
     setState(() {
-      isLoading = true; // Start loading
+      isLoading = true;
     });
 
     try {
@@ -45,7 +46,7 @@ class _RegisterPageState extends State<RegisterPage> {
       );
     } finally {
       setState(() {
-        isLoading = false; // Stop loading
+        isLoading = false;
       });
     }
   }
@@ -60,30 +61,96 @@ class _RegisterPageState extends State<RegisterPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // FINLY Text with Black Fill & White Border
+              Stack(
+                children: [
+                  Text(
+                    "FINLY",
+                    style: TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      foreground: Paint()
+                        ..style = PaintingStyle.stroke
+                        ..strokeWidth = 3
+                        ..color = Colors.white,
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Text(
+                      "FINLY",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10),
+              Text(
+                "Register",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(height: 30),
               TextField(
                 controller: emailController,
+                style: TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: "Email",
+                  labelStyle: TextStyle(color: Colors.white),
                   filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(),
+                  fillColor: Colors.transparent,
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white),
+                  ),
                 ),
               ),
               SizedBox(height: 10),
               TextField(
                 controller: passwordController,
+                style: TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: "Password",
+                  labelStyle: TextStyle(color: Colors.white),
                   filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(),
+                  fillColor: Colors.transparent,
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureText ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureText = !_obscureText;
+                      });
+                    },
+                  ),
                 ),
-                obscureText: true,
+                obscureText: _obscureText,
               ),
               SizedBox(height: 20),
               ElevatedButton(
-                onPressed:
-                    isLoading ? null : signUp, // Disable button when loading
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  side: BorderSide(color: Colors.white),
+                ),
+                onPressed: isLoading ? null : signUp,
                 child: isLoading
                     ? SizedBox(
                         width: 24,
@@ -93,7 +160,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           strokeWidth: 2,
                         ),
                       )
-                    : Text("Register"),
+                    : Text("Register", style: TextStyle(color: Colors.white)),
               ),
               TextButton(
                 onPressed: () {

@@ -6,9 +6,14 @@ class BalancePage extends StatefulWidget {
   final String cardName;
   final double balance;
   final int cardId;
+  final VoidCallback onTransactionAdded;
 
-  BalancePage(
-      {required this.cardName, required this.balance, required this.cardId});
+  BalancePage({
+    required this.cardName,
+    required this.balance,
+    required this.cardId,
+    required this.onTransactionAdded,
+  });
 
   @override
   _BalancePageState createState() => _BalancePageState();
@@ -100,9 +105,10 @@ class _BalancePageState extends State<BalancePage> {
                                 double.tryParse(amountController.text) ?? 0.0;
                             if (amount > 0) {
                               await addTransaction(
-                                  amount,
-                                  categoryController.text,
-                                  descriptionController.text);
+                                amount,
+                                categoryController.text,
+                                descriptionController.text,
+                              );
                               setState(() {});
                             }
                             Navigator.pop(context);
@@ -131,7 +137,6 @@ class _BalancePageState extends State<BalancePage> {
       double newBalance =
           isIncome ? updatedBalance + amount : updatedBalance - amount;
 
-      // Update cards table first, then transactions table
       await supabase
           .from('cards')
           .update({'balance': newBalance}).eq('id', widget.cardId);
@@ -149,8 +154,34 @@ class _BalancePageState extends State<BalancePage> {
       setState(() {
         updatedBalance = newBalance;
       });
+
+      widget.onTransactionAdded();
     } catch (e) {
       print("Error adding transaction: $e");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchTransactions() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return [];
+
+      final List<dynamic> response = await supabase
+          .from('transactions')
+          .select()
+          .eq('user_id', user.id)
+          .eq('card_id', widget.cardId)
+          .eq('type', isIncome ? 'income' : 'expense')
+          .order('created_at', ascending: false);
+
+      if (response.isEmpty) {
+        return [];
+      }
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print("Error fetching transactions: $e");
+      return [];
     }
   }
 
@@ -159,9 +190,13 @@ class _BalancePageState extends State<BalancePage> {
     return Scaffold(
       backgroundColor: Colors.grey.shade900,
       appBar: AppBar(
-        title: Text("Balance Details"),
+        title: Text(
+          "Balance Details",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: IconThemeData(color: Colors.white),
       ),
       body: Column(
         children: [
@@ -213,8 +248,7 @@ class _BalancePageState extends State<BalancePage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 40), // Increased space
+                padding: EdgeInsets.symmetric(horizontal: 40),
                 child: GestureDetector(
                   onTap: () => toggleView(true),
                   child: Text("Income",
@@ -224,8 +258,7 @@ class _BalancePageState extends State<BalancePage> {
                 ),
               ),
               Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 40), // Increased space
+                padding: EdgeInsets.symmetric(horizontal: 40),
                 child: GestureDetector(
                   onTap: () => toggleView(false),
                   child: Text("Expense",
@@ -312,30 +345,5 @@ class _BalancePageState extends State<BalancePage> {
         ],
       ),
     );
-  }
-
-  Future<List<Map<String, dynamic>>> fetchTransactions() async {
-    try {
-      final user = supabase.auth.currentUser;
-      if (user == null) return [];
-
-      final List<dynamic> response = await supabase
-          .from('transactions')
-          .select()
-          .eq('user_id', user.id)
-          .eq('card_id', widget.cardId)
-          .eq('type', isIncome ? 'income' : 'expense')
-          .order('created_at', ascending: false);
-
-      if (response.isEmpty) {
-        return []; // Return an empty list if no data is found
-      }
-
-      return List<Map<String, dynamic>>.from(
-          response); // Properly cast response
-    } catch (e) {
-      print("Error fetching transactions: $e");
-      return [];
-    }
   }
 }

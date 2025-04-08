@@ -54,14 +54,15 @@ class _HomePageState extends State<HomePage> {
         itemBuilder: (context, index) {
           final card = cards[index];
           return InkWell(
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => BalancePage(
                     cardName: card['name'],
                     balance: card['balance'],
                     cardId: card['id'],
+                    onTransactionAdded: fetchCards,
                   ),
                 ),
               );

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Import secure storage
 import 'homepage.dart';
-import 'register.dart'; // Import the Register Page
+import 'register.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,10 +24,55 @@ class BudgetApp extends StatelessWidget {
       title: 'Budget Calculator',
       initialRoute: '/',
       routes: {
-        '/': (context) => LoginPage(),
+        '/': (context) => AuthCheck(), // Use AuthCheck as the initial route
         '/home': (context) => HomePage(),
         '/register': (context) => RegisterPage(),
+        '/login': (context) => LoginPage(),
       },
+    );
+  }
+}
+
+class AuthCheck extends StatefulWidget {
+  @override
+  _AuthCheckState createState() => _AuthCheckState();
+}
+
+class _AuthCheckState extends State<AuthCheck> {
+  final supabase = Supabase.instance.client;
+  final storage = FlutterSecureStorage();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    print("_checkAuth started");
+    final String? token = await storage.read(key: 'supabase_session');
+    print("token: $token");
+    if (token != null) {
+      print("token is not null");
+      try {
+        await supabase.auth.setSession(token);
+        print("session set successfully");
+        Navigator.pushReplacementNamed(context, '/home');
+      } catch (e) {
+        print('Error restoring session: $e');
+        await storage.delete(key: 'supabase_session');
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+    } else {
+      print("token is null");
+      Navigator.pushReplacementNamed(context, '/login');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }
@@ -38,13 +84,16 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final supabase = Supabase.instance.client;
+  final storage = FlutterSecureStorage();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  bool isLoading = false; // Track loading state
+  bool isLoading = false;
+  bool staySignedIn = false;
+  bool _obsecureText = true;
 
   Future<void> signIn() async {
     setState(() {
-      isLoading = true; // Start loading
+      isLoading = true;
     });
 
     try {
@@ -54,6 +103,11 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (response.user != null) {
+        if (staySignedIn) {
+          // Store the session in secure storage
+          await storage.write(
+              key: 'supabase_session', value: response.session?.accessToken);
+        }
         Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (error) {
@@ -63,7 +117,7 @@ class _LoginPageState extends State<LoginPage> {
       );
     } finally {
       setState(() {
-        isLoading = false; // Stop loading
+        isLoading = false;
       });
     }
   }
@@ -78,7 +132,6 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // FINLY Text with Black Fill & White Border
               Stack(
                 children: [
                   Text(
@@ -108,28 +161,77 @@ class _LoginPageState extends State<LoginPage> {
               SizedBox(height: 30),
               TextField(
                 controller: emailController,
+                style: TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  labelText: "Email",
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(),
-                ),
+                    labelText: "Email",
+                    labelStyle: TextStyle(color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.transparent,
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white),
+                    )),
               ),
               SizedBox(height: 10),
               TextField(
                 controller: passwordController,
+                style: TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: "Password",
+                  labelStyle: TextStyle(color: Colors.white),
                   filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(),
+                  fillColor: Colors.transparent,
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obsecureText ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obsecureText = !_obsecureText;
+                      });
+                    },
+                  ),
                 ),
-                obscureText: true,
+                obscureText: _obsecureText,
               ),
-              SizedBox(height: 20),
+              SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Checkbox(
+                    value: staySignedIn,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        staySignedIn = value ?? false;
+                      });
+                    },
+                    shape: CircleBorder(),
+                    checkColor: Colors.black,
+                    activeColor: Colors.white,
+                  ),
+                  Text(
+                    "Stay Signed In",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10),
               ElevatedButton(
-                onPressed:
-                    isLoading ? null : signIn, // Disable button when loading
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  side: BorderSide(color: Colors.white),
+                ),
+                onPressed: isLoading ? null : signIn,
                 child: isLoading
                     ? SizedBox(
                         width: 24,
@@ -139,7 +241,7 @@ class _LoginPageState extends State<LoginPage> {
                           strokeWidth: 2,
                         ),
                       )
-                    : Text("Login"),
+                    : Text("Login", style: TextStyle(color: Colors.white)),
               ),
               SizedBox(height: 10),
               TextButton(
