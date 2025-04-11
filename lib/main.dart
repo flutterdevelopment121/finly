@@ -3,6 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Import secure storage
 import 'homepage.dart';
 import 'register.dart';
+import 'profile.dart';
+import 'category.dart';
+import 'daily_allowance.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +31,10 @@ class BudgetApp extends StatelessWidget {
         '/home': (context) => HomePage(),
         '/register': (context) => RegisterPage(),
         '/login': (context) => LoginPage(),
+        '/profile': (context) => ProfilePage(),
+        // Corrected to use CategoryListPage from category.dart
+        '/category_spending': (context) => CategoryListPage(),
+        '/daily_allowance': (context) => DailyAllowancePage(),
       },
     );
   }

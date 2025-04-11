@@ -38,6 +38,7 @@ dependencies:
   supabase_flutter: ^2.8.4
   shared_preferences: ^2.5.2
   flutter_secure_storage: ^9.2.4
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:
