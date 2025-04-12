@@ -1,0 +1,2 @@
+C:/Users/adilr/Documents/budget/android/app/.cxx/RelWithDebInfo/3o6p1k4p/x86_64/CMakeFiles/edit_cache.dir
+C:/Users/adilr/Documents/budget/android/app/.cxx/RelWithDebInfo/3o6p1k4p/x86_64/CMakeFiles/rebuild_cache.dir
