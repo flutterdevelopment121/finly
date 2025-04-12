@@ -6,6 +6,7 @@ import 'register.dart';
 import 'profile.dart';
 import 'category.dart';
 import 'daily_allowance.dart';
+import 'set_goals.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,7 @@ class BudgetApp extends StatelessWidget {
         // Corrected to use CategoryListPage from category.dart
         '/category_spending': (context) => CategoryListPage(),
         '/daily_allowance': (context) => DailyAllowancePage(),
+        '/set_goals': (context) => SetGoalsPage(),
       },
     );
   }

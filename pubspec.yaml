@@ -38,29 +38,33 @@ dependencies:
   supabase_flutter: ^2.8.4
   shared_preferences: ^2.5.2
   flutter_secure_storage: ^9.2.4
-  intl: ^0.18.1
+  intl: ^0.18.1   # For date formatting and localization
+
+# ... (other dependencies)
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.13.1
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
-  flutter_lints: ^4.0.0
+# --- Add this section ---
+flutter_launcher_icons:
+  android: "launcher_icon" # The name for the Android icon file (default is fine)
+  ios: true                # Generate icons for iOS
+  image_path: "assets/images/app_icon.png" # Path to YOUR app icon image
+  min_sdk_android: 21      # Optional: Specify minimum Android SDK (usually not needed)
+  # Optional: For adaptive icons on Android (Android 8.0+)
+  # adaptive_icon_background: "#ffffff" # Color for the background layer
+  # adaptive_icon_foreground: "assets/images/app_icon_foreground.png" # Path to foreground layer image
+  # remove_alpha_ios: true # Optional: Remove alpha channel for iOS icons
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
-
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/images/ # Make sure your assets folder is declared if you put the icon there
+  # ... (rest of your flutter section)
+
+
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -742,6 +742,20 @@ class _HomePageState extends State<HomePage> {
           ),
           SizedBox(width: 10), // Spacing
           // --- End New Button ---
+          // --- Set Goals Button ---
+          FloatingActionButton(
+            heroTag: 'setGoalsButton', // Unique heroTag for Set Goals
+            onPressed: () {
+              // Navigate to the Set Goals page (define this route in your main.dart)
+              Navigator.pushNamed(context, '/set_goals');
+            },
+            backgroundColor:
+                Colors.white.withOpacity(0.3), // Keep the style consistent
+            tooltip: 'Set Goals', // Updated tooltip
+            child: Icon(Icons.flag_outlined, // Icon representing goals
+                color: Colors.white),
+          ),
+          SizedBox(width: 10), // Spacing
 
           // Category Spending Button (New)
           FloatingActionButton(
