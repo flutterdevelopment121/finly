@@ -38,7 +38,9 @@ dependencies:
   supabase_flutter: ^2.8.4
   shared_preferences: ^2.5.2
   flutter_secure_storage: ^9.2.4
-  intl: ^0.18.1   # For date formatting and localization
+  fl_chart: ^0.68.0 
+  intl: ^0.19.0   # For date formatting and localization
+  table_calendar: ^3.1.1
 
 # ... (other dependencies)
 

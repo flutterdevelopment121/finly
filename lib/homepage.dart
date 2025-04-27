@@ -728,6 +728,21 @@ class _HomePageState extends State<HomePage> {
           ),
           SizedBox(width: 10), // Spacing
 
+          // --- New Calendar Button --- Added ---
+          FloatingActionButton(
+            heroTag: 'calendarButton', // Unique heroTag
+            onPressed: () {
+              // TODO: Make sure '/calendar' route is defined in main.dart
+              Navigator.pushNamed(context, '/calendar');
+            },
+            backgroundColor: Colors.white.withOpacity(0.3), // Same style
+            tooltip: 'Calendar View', // Add tooltip
+            child: Icon(Icons.calendar_month_outlined,
+                color: Colors.white), // Calendar icon
+          ),
+          SizedBox(width: 10), // Spacing
+          // --- End New Calendar Button ---
+
           // --- New Daily Allowance Button ---
           FloatingActionButton(
             heroTag: 'dailyAllowanceButton', // Unique heroTag
