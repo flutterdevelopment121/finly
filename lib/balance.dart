@@ -3,6 +3,11 @@ import 'dart:ui';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'dart:typed_data'; // Import for Uint8List
+
 // Model for Category data
 class Category {
   final String id; // Assuming UUID from Supabase
@@ -54,6 +59,10 @@ class _BalancePageState extends State<BalancePage> {
 
   final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
+  // --- State for PDF Generation ---
+  DateTime? _selectedFromDate;
+  DateTime? _selectedToDate;
+  // --- End State for PDF Generation ---
   @override
   void initState() {
     super.initState();
@@ -856,6 +865,244 @@ class _BalancePageState extends State<BalancePage> {
   }
   // --- End Dialog for Deleting Transaction Confirmation ---
 
+  // --- PDF Statement Generation ---
+  Future<void> _showDateRangePickerPopup() async {
+    // Reset dates
+    _selectedFromDate = null;
+    _selectedToDate = null;
+    bool isGenerating = false;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: Colors.grey.shade800,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            title: Text('Select Date Range',
+                style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: Text(
+                      _selectedFromDate == null
+                          ? 'From Date'
+                          : 'From: ${DateFormat.yMMMd().format(_selectedFromDate!)}',
+                      style: TextStyle(color: Colors.white70)),
+                  trailing: Icon(Icons.calendar_today, color: Colors.white54),
+                  onTap: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: dialogContext,
+                      initialDate: _selectedFromDate ?? DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => _selectedFromDate = picked);
+                    }
+                  },
+                ),
+                ListTile(
+                  title: Text(
+                      _selectedToDate == null
+                          ? 'To Date'
+                          : 'To: ${DateFormat.yMMMd().format(_selectedToDate!)}',
+                      style: TextStyle(color: Colors.white70)),
+                  trailing: Icon(Icons.calendar_today, color: Colors.white54),
+                  onTap: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: dialogContext,
+                      initialDate: _selectedToDate ?? DateTime.now(),
+                      firstDate: _selectedFromDate ?? DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => _selectedToDate = picked);
+                    }
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed:
+                    isGenerating ? null : () => Navigator.pop(dialogContext),
+                child: Text('Cancel', style: TextStyle(color: Colors.white)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent),
+                onPressed: (isGenerating ||
+                        _selectedFromDate == null ||
+                        _selectedToDate == null)
+                    ? null
+                    : () async {
+                        setDialogState(() => isGenerating = true);
+                        await _handleGenerateStatement(dialogContext);
+                        if (Navigator.of(dialogContext).canPop()) {
+                          Navigator.pop(dialogContext);
+                        }
+                        // isGenerating will be reset if dialog is popped or on error
+                      },
+                child: isGenerating
+                    ? SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5))
+                    : Text('Generate', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchTransactionsForStatement(
+      DateTime fromDate, DateTime toDate) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) throw Exception("User not logged in.");
+
+    // Adjust toDate to include the whole day
+    final DateTime adjustedToDate =
+        DateTime(toDate.year, toDate.month, toDate.day, 23, 59, 59);
+
+    final response = await supabase
+        .from('transactions')
+        .select('created_at, description, amount, type, categories(name)')
+        .eq('user_id', user.id)
+        .eq('card_id', widget.cardId)
+        .gte('created_at', fromDate.toIso8601String())
+        .lte('created_at', adjustedToDate.toIso8601String())
+        .order('created_at', ascending: true); // Order by date for statement
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<Uint8List> _generateTransactionPDF(
+      List<Map<String, dynamic>> transactions,
+      DateTime fromDate,
+      DateTime toDate) async {
+    final pdf = pw.Document();
+    final DateFormat pdfDateFormatter = DateFormat('dd MMM yyyy, hh:mm a');
+    final DateFormat statementPeriodFormatter = DateFormat('dd MMM yyyy');
+
+    pdf.addPage(
+      pw.MultiPage(
+          // Use MultiPage for content that might span pages
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.all(32),
+          build: (pw.Context context) {
+            return [
+              // Return a list of widgets
+              pw.Header(
+                  level: 0,
+                  child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Finly - Transaction Statement',
+                            style: pw.TextStyle(
+                                fontSize: 20, fontWeight: pw.FontWeight.bold)),
+                        pw.Text('Card: ${widget.cardName}',
+                            style: pw.TextStyle(fontSize: 12)),
+                      ])),
+              pw.SizedBox(height: 10),
+              pw.Text(
+                  'Statement Period: ${statementPeriodFormatter.format(fromDate)} - ${statementPeriodFormatter.format(toDate)}',
+                  style: pw.TextStyle(
+                      fontSize: 12, fontStyle: pw.FontStyle.italic)),
+              pw.SizedBox(height: 20),
+              pw.Table.fromTextArray(
+                headers: [
+                  'Date',
+                  'Description',
+                  'Category',
+                  'Type',
+                  'Amount (₹)'
+                ],
+                cellAlignment: pw.Alignment.centerLeft,
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                cellStyle: const pw.TextStyle(fontSize: 10),
+                columnWidths: {
+                  // Adjust column widths as needed
+                  0: pw.FlexColumnWidth(2.5),
+                  1: pw.FlexColumnWidth(3),
+                  2: pw.FlexColumnWidth(2),
+                  3: pw.FlexColumnWidth(1.5),
+                  4: pw.FlexColumnWidth(1.5),
+                },
+                data: transactions.map((tx) {
+                  final categoryData =
+                      tx['categories'] as Map<String, dynamic>?;
+                  final categoryName =
+                      categoryData?['name'] as String? ?? 'N/A';
+                  final createdAtString = tx['created_at'] as String?;
+                  String formattedTxDate = 'N/A';
+                  if (createdAtString != null) {
+                    try {
+                      formattedTxDate = pdfDateFormatter
+                          .format(DateTime.parse(createdAtString).toLocal());
+                    } catch (_) {}
+                  }
+                  return [
+                    formattedTxDate,
+                    tx['description'] as String? ?? '',
+                    categoryName,
+                    (tx['type'] as String?)?.capitalize() ?? '',
+                    currencyFormatter
+                        .format((tx['amount'] as num?)?.toDouble() ?? 0.0)
+                        .replaceAll('₹', '') // Remove symbol for cleaner table
+                  ];
+                }).toList(),
+              ),
+            ];
+          },
+          footer: (pw.Context context) {
+            return pw.Container(
+                alignment: pw.Alignment.centerRight,
+                margin: const pw.EdgeInsets.only(top: 1.0 * PdfPageFormat.cm),
+                child: pw.Text(
+                    'Page ${context.pageNumber} of ${context.pagesCount}',
+                    style: pw.Theme.of(context)
+                        .defaultTextStyle
+                        .copyWith(color: PdfColors.grey)));
+          }),
+    );
+    return pdf.save();
+  }
+
+  Future<void> _handleGenerateStatement(BuildContext dialogContext) async {
+    if (_selectedFromDate == null || _selectedToDate == null) {
+      ScaffoldMessenger.of(dialogContext).showSnackBar(
+          SnackBar(content: Text('Please select both from and to dates.')));
+      return;
+    }
+
+    try {
+      final transactions = await _fetchTransactionsForStatement(
+          _selectedFromDate!, _selectedToDate!);
+
+      if (transactions.isEmpty) {
+        ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(
+            content: Text('No transactions found for the selected period.')));
+        return;
+      }
+
+      final pdfData = await _generateTransactionPDF(
+          transactions, _selectedFromDate!, _selectedToDate!);
+      await Printing.layoutPdf(
+          onLayout: (PdfPageFormat format) async => pdfData);
+    } catch (e) {
+      print("Error generating PDF statement: $e");
+      ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(
+          content: Text('Error generating statement: ${e.toString()}')));
+    }
+  }
+  // --- End PDF Statement Generation ---
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -868,6 +1115,13 @@ class _BalancePageState extends State<BalancePage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.print_outlined, color: Colors.white),
+            tooltip: 'Print Statement',
+            onPressed: _showDateRangePickerPopup,
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -1051,19 +1305,36 @@ class _BalancePageState extends State<BalancePage> {
                               : Icons.arrow_downward_rounded,
                           color: amountColor,
                         ),
-                        title: Text(
-                          // Show description or category as title
-                          description.isNotEmpty ? description : categoryName,
-                          style: TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.w600),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        // --- Show date in subtitle ---
-                        subtitle: Text(
-                          formattedDate, // Show formatted date
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
+                        title: description.isNotEmpty
+                            ? Text(
+                                description,
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              )
+                            : Text(
+                                categoryName, // Show category as title if no description
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                        subtitle: description.isNotEmpty
+                            ? Text(
+                                "$categoryName  •  $formattedDate", // Category and Date if description exists
+                                style: TextStyle(
+                                    color: Colors.white70, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              )
+                            : Text(
+                                formattedDate, // Only Date if no description (category is title)
+                                style: TextStyle(
+                                    color: Colors.white70, fontSize: 12),
+                              ),
                         // --- Modified Trailing for Amount + Delete Button ---
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min, // Keep row compact
@@ -1152,5 +1423,12 @@ class _BalancePageState extends State<BalancePage> {
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.symmetric(horizontal: 15, vertical: 8),
     );
+  }
+}
+
+// Helper extension for capitalizing strings (optional, but nice for 'Type' column)
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${this.substring(1).toLowerCase()}";
   }
 }

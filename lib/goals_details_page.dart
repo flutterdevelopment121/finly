@@ -3,6 +3,24 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui'; // For BackdropFilter
 import 'package:intl/intl.dart'; // For date formatting
 
+// Simple Card model (if not defined elsewhere, e.g., in a models file)
+// Renamed to UserCard to avoid potential conflicts if 'Card' is used by Flutter
+class UserCard {
+  final String id;
+  final String name;
+  // Add other relevant card details if needed, e.g., last4, type
+
+  UserCard({required this.id, required this.name});
+
+  factory UserCard.fromMap(Map<String, dynamic> map) {
+    return UserCard(
+      id: map['id'].toString(), // Safely convert id to String
+      name: map['name'] as String? ??
+          'Unnamed Card', // Handle potential null names
+    );
+  }
+}
+
 // Convert to StatefulWidget
 class GoalDetailsPage extends StatefulWidget {
   final Map<String, dynamic> initialGoalData; // Receive the initial goal data
@@ -425,7 +443,8 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
                               SizedBox(width: 10),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blueAccent, // Update color
+                                  backgroundColor:
+                                      Colors.blueAccent, // Update color
                                   foregroundColor: Colors.white,
                                   minimumSize: Size(80, 36),
                                   shape: RoundedRectangleBorder(
@@ -436,11 +455,13 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
                                     ? null
                                     : () async {
                                         if (formKey.currentState!.validate()) {
-                                          final newName = nameController.text.trim();
+                                          final newName =
+                                              nameController.text.trim();
                                           final newTargetAmount = double.parse(
                                               targetAmountController.text);
 
-                                          setDialogState(() => isUpdating = true);
+                                          setDialogState(
+                                              () => isUpdating = true);
                                           try {
                                             await _updateGoalDetails(
                                                 newName, newTargetAmount);
@@ -484,7 +505,8 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
   // --- End Function to show the Edit Goal Dialog ---
 
   // --- Function to Update Goal Details in Supabase ---
-  Future<void> _updateGoalDetails(String newName, double newTargetAmount) async {
+  Future<void> _updateGoalDetails(
+      String newName, double newTargetAmount) async {
     // Use isLoadingContribution flag or create a new one if needed
     if (isLoadingContribution) return;
     setState(() => isLoadingContribution = true);
@@ -535,7 +557,6 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
     }
   }
   // --- End Function to Update Goal Details ---
-
 
   // --- Delete Goal Logic ---
   Future<void> _deleteGoal() async {
@@ -801,6 +822,299 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
     }
   }
 
+  // --- Function to get or create "FROM GOAL" category ---
+  Future<String?> _getOrCreateFromGoalCategory() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) throw Exception("User not logged in.");
+    const categoryName = "FROM GOAL";
+
+    try {
+      // Check if category exists
+      final existingCategory = await supabase
+          .from('categories')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('name', categoryName)
+          .maybeSingle();
+
+      if (existingCategory != null && existingCategory['id'] != null) {
+        return existingCategory['id'] as String;
+      } else {
+        // Create category if it doesn't exist
+        final newCategory = await supabase
+            .from('categories')
+            .insert({'user_id': user.id, 'name': categoryName})
+            .select('id')
+            .single();
+        return newCategory['id'] as String;
+      }
+    } catch (e) {
+      print("Error getting/creating 'FROM GOAL' category: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text("Error setting up 'FROM GOAL' category: $e"),
+              backgroundColor: Colors.red),
+        );
+      }
+      return null;
+    }
+  }
+
+  // --- Function to show the Move Funds to Card Dialog ---
+  void _showMoveFundsToCardDialog() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('User not logged in.'), backgroundColor: Colors.red));
+      return;
+    }
+
+    // Fetch user's cards/accounts
+    List<UserCard> userCards = [];
+    String? selectedCardId; // To store the ID of the selected card/account
+    bool isLoadingCards = true;
+    String? cardFetchError;
+
+    try {
+      // IMPORTANT: Replace 'accounts' with your actual table name for cards/bank accounts
+      // And ensure 'name' and 'id' are the correct column names.
+      final response = await supabase
+          .from('cards') // Changed from 'accounts' to 'cards'
+          .select('id, name')
+          .eq('user_id', user.id);
+      userCards = response.map((data) => UserCard.fromMap(data)).toList();
+    } catch (e) {
+      print("Error fetching cards: $e");
+      cardFetchError = "Failed to load cards. Please try again.";
+    }
+    isLoadingCards = false;
+
+    // ignore: use_build_context_synchronously
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            bool isProcessing = false;
+
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "Move Funds to Card",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 20),
+                        if (isLoadingCards)
+                          CircularProgressIndicator(color: Colors.white)
+                        else if (cardFetchError != null)
+                          Text(cardFetchError,
+                              style: TextStyle(color: Colors.redAccent))
+                        else if (userCards.isEmpty)
+                          Text("No cards/accounts found. Please add one first.",
+                              style: TextStyle(color: Colors.white70))
+                        else
+                          DropdownButtonFormField<String>(
+                            // Changed variable name
+                            value: selectedCardId,
+                            hint: Text("Select a Card/Account",
+                                style: TextStyle(color: Colors.white70)),
+                            dropdownColor: Colors.grey.shade800,
+                            style: TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              enabledBorder: OutlineInputBorder(
+                                  borderSide:
+                                      BorderSide(color: Colors.white54)),
+                              focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.white)),
+                              errorStyle: TextStyle(color: Colors.yellowAccent),
+                            ),
+                            items: userCards.map((UserCard card) {
+                              return DropdownMenuItem<String>(
+                                value: card.id,
+                                child: Text(card.name),
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              setDialogState(() => selectedCardId =
+                                  newValue); // Changed variable name
+                            },
+                            validator: (value) => value == null
+                                ? 'Please select a card/account'
+                                : null,
+                          ),
+                        SizedBox(height: 25),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: isProcessing
+                                  ? null
+                                  : () => Navigator.pop(context),
+                              child: Text("Cancel",
+                                  style: TextStyle(
+                                      color: isProcessing
+                                          ? Colors.grey
+                                          : Colors.white)),
+                            ),
+                            SizedBox(width: 10),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.tealAccent,
+                                  foregroundColor: Colors.black),
+                              onPressed:
+                                  (isProcessing || // Changed variable name
+                                          selectedCardId == null ||
+                                          userCards.isEmpty ||
+                                          isLoadingCards)
+                                      ? null
+                                      : () async {
+                                          setDialogState(
+                                              () => isProcessing = true);
+                                          await _processFundMovement(
+                                              // Changed variable name
+                                              selectedCardId!);
+                                          setDialogState(
+                                              () => isProcessing = false);
+                                          // Check if dialog is still mounted before popping
+                                          if (Navigator.of(context,
+                                                  rootNavigator: true)
+                                              .canPop()) {
+                                            Navigator.pop(
+                                                context); // Close dialog
+                                          }
+                                        },
+                              child: isProcessing
+                                  ? SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                          color: Colors.black,
+                                          strokeWidth: 2.5))
+                                  : Text("Move Funds"),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // --- Function to Process Fund Movement ---
+  Future<void> _processFundMovement(String cardId) async {
+    // Renamed parameter for clarity
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    final String? fromGoalCategoryId = await _getOrCreateFromGoalCategory();
+    if (fromGoalCategoryId == null) {
+      // Error message already shown by _getOrCreateFromGoalCategory
+      return;
+    }
+
+    final goalId = goalData['id'];
+    final goalName = goalData['name'] as String? ?? 'Goal Transfer';
+    final amountToMove =
+        (goalData['current_amount'] as num?)?.toDouble() ?? 0.0;
+
+    if (amountToMove <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('No funds to move from this goal.'),
+              backgroundColor: Colors.orange),
+        );
+      }
+      return;
+    }
+
+    try {
+      // --- Update Card Balance ---
+      // 1. Fetch current balance of the selected card
+      final cardResponse = await supabase
+          .from('cards')
+          .select('balance')
+          .eq('id', cardId)
+          .eq('user_id', user.id)
+          .single(); // Expecting a single row
+
+      final currentCardBalance =
+          (cardResponse['balance'] as num?)?.toDouble() ?? 0.0;
+      final newCardBalance = currentCardBalance + amountToMove;
+
+      // 2. Update card's balance in the 'cards' table
+      await supabase
+          .from('cards')
+          .update({'balance': newCardBalance})
+          .eq('id', cardId)
+          .eq('user_id', user.id);
+      // --- End Update Card Balance ---
+
+      // 3. Create transaction (income for the selected card/account)
+      // IMPORTANT: Ensure your 'transactions' table has 'account_id' (or similar)
+      // and 'category_id' columns.
+      await supabase.from('transactions').insert({
+        'user_id': user.id,
+        'card_id': cardId, // Changed from 'account_id' to 'card_id'
+        'category_id': fromGoalCategoryId,
+        'amount': amountToMove,
+        'type': 'income', // It's an income for the card/account
+        'description': 'Funds from goal: $goalName',
+      });
+
+      // 4. Update goal's current_amount to 0
+      await supabase
+          .from('goals')
+          .update({'current_amount': 0.0})
+          .eq('id', goalId)
+          .eq('user_id', user.id);
+
+      // 5. Update local state for the GoalDetailsPage
+      if (mounted) {
+        setState(() {
+          goalData['current_amount'] = 0.0;
+          _needsRefresh = true;
+        });
+        _fetchContributionHistory(); // Refresh history (though no new contributions, UI might need update)
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Funds moved successfully! Card balance updated.'),
+            backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      print("Error moving funds and updating card balance: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text('Error moving funds or updating card: ${e.toString()}'),
+            backgroundColor: Colors.red));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Extract data from the state variable 'goalData'
@@ -810,7 +1124,7 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
         (goalData['target_amount'] as num?)?.toDouble() ?? 0.0;
     late final double current =
         (goalData['current_amount'] as num?)?.toDouble() ?? 0.0;
-    late final String id = goalData['id'] ?? 'N/A';
+    // late final String id = goalData['id'] ?? 'N/A'; // id is already available via goalData['id']
     late final double progress =
         (target > 0) ? (current / target).clamp(0.0, 1.0) : 0.0;
 
@@ -964,6 +1278,17 @@ class _GoalDetailsPageState extends State<GoalDetailsPage> {
             ),
           ),
         ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        floatingActionButton:
+            (((goalData['current_amount'] as num?)?.toDouble()) ?? 0.0) > 0
+                ? FloatingActionButton.extended(
+                    onPressed: _showMoveFundsToCardDialog,
+                    label: Text('Move Funds to Card',
+                        style: TextStyle(color: Colors.black)),
+                    icon: Icon(Icons.send_to_mobile, color: Colors.black),
+                    backgroundColor: Colors.tealAccent,
+                  )
+                : null, // Hide FAB if no funds to move
       ),
     );
   }

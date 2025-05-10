@@ -120,8 +120,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
       if (mounted) {
         setState(() {
           _categorySummaries = summariesMap.values.toList()
-            // Optional: Sort summaries, e.g., by name or net amount
-            ..sort((a, b) => a.name.compareTo(b.name));
+            // Sort summaries by total expense in descending order
+            ..sort((a, b) => b.totalExpense.compareTo(a.totalExpense));
           _isLoading = false;
         });
       }

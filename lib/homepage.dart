@@ -20,29 +20,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> fetchCards() async {
-    // Use mounted check consistently
-    if (mounted && !isLoading) {
-      setState(() {
-        isLoading = true;
-      });
-    } else if (!mounted && !isLoading) {
-      // If not mounted and not loading, just set loading flag
+    if (!mounted) return;
+
+    setState(() {
       isLoading = true;
-    }
+    });
 
     try {
       final user = supabase.auth.currentUser;
-      // Handle user null case more robustly
       if (user == null) {
         if (mounted) {
           // Navigate to login if user is null
           Navigator.pushReplacementNamed(context, '/');
-        }
-        // Set loading false and return if user is null
-        if (mounted) {
+          // Ensure isLoading is reset if we return early or navigate away
           setState(() => isLoading = false);
-        } else {
-          isLoading = false;
         }
         return;
       }
@@ -51,24 +42,30 @@ class _HomePageState extends State<HomePage> {
           .select()
           .eq('user_id', user.id)
           .order('created_at', ascending: false);
+
+      // Check mounted again before setState, as async gap might unmount
       if (mounted) {
         setState(() {
           cards = response
               .map((card) => {
                     'id': card['id'],
-                    'name': card['name'] as String, // Cast name to String
+                    'name': card['name'] as String,
                     'balance': (card['balance'] as num).toDouble(),
                   })
               .toList();
-          isLoading = false;
+          // isLoading will be set to false in the finally block
         });
       }
     } catch (error) {
-      print("Error fetching cards: $error"); // Log error for debugging
+      print("Error fetching cards: $error");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error fetching cards: ${error.toString()}")),
         );
+        // isLoading will be set to false in the finally block
+      }
+    } finally {
+      if (mounted) {
         setState(() => isLoading = false);
       }
     }
@@ -91,15 +88,21 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ListView.builder(
-        itemCount: cards.length,
-        itemBuilder: (context, index) {
-          final card = cards[index];
-          final cardId = card['id'];
-          final cardName = card['name'];
-
+    return RefreshIndicator(
+      onRefresh: fetchCards, // Call fetchCards when pulled down
+      color: Colors.white, // Color of the refresh indicator
+      backgroundColor: Colors.grey.shade800, // Background of the indicator
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ListView.builder(
+          itemCount: cards.length,
+          // Ensure ListView can always be scrolled to enable RefreshIndicator
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemBuilder: (context, index) {
+            final card = cards[index];
+            final cardId = card['id'];
+          final cardName = card['name'] as String; // Ensure type
+          final cardBalance = (card['balance'] as num).toDouble(); // Ensure type
           return InkWell(
             onTap: () async {
               // Navigate and refresh on return
@@ -107,15 +110,16 @@ class _HomePageState extends State<HomePage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => BalancePage(
-                    cardName: card['name'],
-                    balance: card['balance'],
-                    cardId: card['id'],
+                    cardName: cardName,
+                    balance: cardBalance,
+                    cardId: cardId,
                     // Pass the fetchCards method correctly
                     onHomePageRefreshNeeded: fetchCards,
                   ),
                 ),
               );
-              // No need to call fetchCards here if BalancePage calls the callback
+              // Always refresh cards when returning from BalancePage.
+              fetchCards();
             },
             onLongPress: () {
               _showCardOptionsDialog(cardId, cardName);
@@ -157,7 +161,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         SizedBox(height: 10),
                         Text(
-                          "₹${card['balance'].toStringAsFixed(2)}",
+                          "₹${cardBalance.toStringAsFixed(2)}",
                           style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
@@ -171,6 +175,7 @@ class _HomePageState extends State<HomePage> {
             ),
           );
         },
+        ),
       ),
     );
   }
